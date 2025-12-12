@@ -205,3 +205,17 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Data Lab Specific
+# Data files from scrapers
+data-scrapers/data/*.csv
+data-scrapers/logs/*.log
+
+# Environment configuration with secrets
+data-scrapers/config.env
+
+# Jupyter notebook checkpoints (already covered above but being explicit)
+notebooks/.ipynb_checkpoints/
+
+# Kubernetes secrets (if generated locally)
+k3s-setup/*-secret.yaml

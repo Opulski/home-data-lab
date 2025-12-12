@@ -1,0 +1,31 @@
+---
+# Ansible inventory file for Raspberry PI k3s cluster
+# Update the IP addresses to match your Raspberry PIs
+
+all:
+  vars:
+    ansible_user: pi  # Default Raspberry PI user, change if needed
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+k3s_cluster:
+  children:
+    master:
+      hosts:
+        rpi-master:
+          ansible_host: 192.168.1.10  # Change to your master PI IP
+          k3s_node_name: rpi-master
+    
+    workers:
+      hosts:
+        rpi-worker-1:
+          ansible_host: 192.168.1.11  # Change to your worker PI IP
+          k3s_node_name: rpi-worker-1
+        
+        rpi-worker-2:
+          ansible_host: 192.168.1.12  # Change to your worker PI IP
+          k3s_node_name: rpi-worker-2
+        
+        rpi-worker-3:
+          ansible_host: 192.168.1.13  # Change to your worker PI IP
+          k3s_node_name: rpi-worker-3

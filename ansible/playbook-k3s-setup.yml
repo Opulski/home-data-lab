@@ -1,0 +1,147 @@
+---
+# Ansible playbook to automate k3s cluster setup on Raspberry PIs
+# Usage: ansible-playbook -i inventory.yml playbook-k3s-setup.yml
+
+- name: Prepare all Raspberry PIs for k3s
+  hosts: k3s_cluster
+  become: yes
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+        autoremove: yes
+
+    - name: Check if cmdline.txt exists (new location)
+      stat:
+        path: /boot/firmware/cmdline.txt
+      register: cmdline_firmware
+
+    - name: Check if cmdline.txt exists (old location)
+      stat:
+        path: /boot/cmdline.txt
+      register: cmdline_boot
+
+    - name: Set cmdline path
+      set_fact:
+        cmdline_path: "{{ '/boot/firmware/cmdline.txt' if cmdline_firmware.stat.exists else '/boot/cmdline.txt' }}"
+
+    - name: Check if cgroups are already enabled
+      command: grep -q "cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory" {{ cmdline_path }}
+      register: cgroups_enabled
+      failed_when: false
+      changed_when: false
+
+    - name: Backup cmdline.txt
+      copy:
+        src: "{{ cmdline_path }}"
+        dest: "{{ cmdline_path }}.backup"
+        remote_src: yes
+      when: cgroups_enabled.rc != 0
+
+    - name: Enable cgroups in cmdline.txt
+      lineinfile:
+        path: "{{ cmdline_path }}"
+        regexp: '^(.*?)(\s*cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory\s*)?$'
+        line: '\1 cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory'
+        backrefs: yes
+      when: cgroups_enabled.rc != 0
+      register: cgroups_changed
+
+    - name: Reboot if cgroups were changed
+      reboot:
+        msg: "Rebooting to apply cgroup changes"
+        reboot_timeout: 300
+      when: cgroups_changed.changed
+
+- name: Install k3s on master node
+  hosts: master
+  become: yes
+  tasks:
+    - name: Download k3s installation script
+      get_url:
+        url: https://get.k3s.io
+        dest: /tmp/k3s-install.sh
+        mode: '0755'
+
+    - name: Install k3s server
+      shell: |
+        INSTALL_K3S_EXEC="server --disable traefik --write-kubeconfig-mode 644 --node-name {{ k3s_node_name }}" \
+        /tmp/k3s-install.sh
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Wait for k3s to be ready
+      wait_for:
+        port: 6443
+        delay: 10
+        timeout: 120
+
+    - name: Get k3s node token
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_token
+
+    - name: Get master IP address
+      set_fact:
+        k3s_master_ip: "{{ ansible_host }}"
+
+    - name: Set k3s URL
+      set_fact:
+        k3s_url: "https://{{ k3s_master_ip }}:6443"
+
+    - name: Display master node information
+      debug:
+        msg: "Master node ready. Token and URL saved for worker nodes."
+
+- name: Install k3s on worker nodes
+  hosts: workers
+  become: yes
+  tasks:
+    - name: Download k3s installation script
+      get_url:
+        url: https://get.k3s.io
+        dest: /tmp/k3s-install.sh
+        mode: '0755'
+
+    - name: Install k3s agent
+      shell: |
+        K3S_URL="{{ hostvars[groups['master'][0]].k3s_url }}" \
+        K3S_TOKEN="{{ hostvars[groups['master'][0]].k3s_token.content | b64decode | trim }}" \
+        INSTALL_K3S_EXEC="agent --node-name {{ k3s_node_name }}" \
+        /tmp/k3s-install.sh
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Wait for k3s agent to start
+      wait_for:
+        path: /var/lib/rancher/k3s/agent/kubelet.kubeconfig
+        delay: 5
+        timeout: 120
+
+- name: Verify cluster setup
+  hosts: master
+  become: yes
+  tasks:
+    - name: Wait for all nodes to be ready
+      shell: kubectl get nodes -o json | jq -r '.items[] | select(.status.conditions[] | select(.type=="Ready" and .status=="True")) | .metadata.name' | wc -l
+      register: ready_nodes
+      until: ready_nodes.stdout | int == groups['k3s_cluster'] | length
+      retries: 12
+      delay: 10
+
+    - name: Get cluster status
+      command: kubectl get nodes
+      register: cluster_status
+
+    - name: Display cluster status
+      debug:
+        msg: "{{ cluster_status.stdout_lines }}"
+
+    - name: Display success message
+      debug:
+        msg: "k3s cluster setup complete! All {{ groups['k3s_cluster'] | length }} nodes are ready."
