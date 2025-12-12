@@ -1,0 +1,159 @@
+---
+# Namespace for data lab applications
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: data-lab
+
+---
+# ConfigMap for scraper configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scraper-config
+  namespace: data-lab
+data:
+  DATA_DIR: "/data"
+  LOG_DIR: "/logs"
+  TIMEZONE: "Europe/Berlin"
+  SCRAPING_SCHEDULE: "0 */6 * * *"
+
+---
+# Secret for API keys (create this manually with your actual keys)
+# kubectl create secret generic scraper-secrets \
+#   --from-literal=entsoe-api-key=YOUR_KEY \
+#   --namespace=data-lab
+apiVersion: v1
+kind: Secret
+metadata:
+  name: scraper-secrets
+  namespace: data-lab
+type: Opaque
+data:
+  # Base64 encoded values - replace with your actual encoded keys
+  # echo -n "your_api_key" | base64
+  entsoe-api-key: eW91cl9lbnRzb2VfYXBpX2tleV9oZXJl  # Replace with actual key
+
+---
+# PersistentVolumeClaim for data storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: scraper-data-pvc
+  namespace: data-lab
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path  # k3s default storage class
+
+---
+# CronJob for scheduled data scraping
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: entsoe-scraper
+  namespace: data-lab
+spec:
+  schedule: "0 */6 * * *"  # Run every 6 hours
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: scraper
+            image: data-scraper:latest  # Build and tag your image
+            imagePullPolicy: IfNotPresent
+            command: ["python", "entsoe_scraper.py"]
+            env:
+            - name: ENTSOE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: scraper-secrets
+                  key: entsoe-api-key
+            - name: DATA_DIR
+              valueFrom:
+                configMapKeyRef:
+                  name: scraper-config
+                  key: DATA_DIR
+            - name: LOG_DIR
+              valueFrom:
+                configMapKeyRef:
+                  name: scraper-config
+                  key: LOG_DIR
+            - name: TIMEZONE
+              valueFrom:
+                configMapKeyRef:
+                  name: scraper-config
+                  key: TIMEZONE
+            volumeMounts:
+            - name: data-volume
+              mountPath: /data
+            - name: logs-volume
+              mountPath: /logs
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "200m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+          volumes:
+          - name: data-volume
+            persistentVolumeClaim:
+              claimName: scraper-data-pvc
+          - name: logs-volume
+            emptyDir: {}
+
+---
+# Deployment for on-demand scraping (optional)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scraper-service
+  namespace: data-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scraper-service
+  template:
+    metadata:
+      labels:
+        app: scraper-service
+    spec:
+      containers:
+      - name: scraper
+        image: data-scraper:latest
+        imagePullPolicy: IfNotPresent
+        command: ["sleep", "infinity"]  # Keep container running for manual execution
+        env:
+        - name: ENTSOE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scraper-secrets
+              key: entsoe-api-key
+        - name: DATA_DIR
+          valueFrom:
+            configMapKeyRef:
+              name: scraper-config
+              key: DATA_DIR
+        volumeMounts:
+        - name: data-volume
+          mountPath: /data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: scraper-data-pvc
