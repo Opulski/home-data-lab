@@ -208,6 +208,6 @@ __marimo__/
 
 # Jupyter Notebook
 .jupyter/
-.DS Store
+.DS_Store
 */.ipynb_checkpoints
 .nbgrader/
