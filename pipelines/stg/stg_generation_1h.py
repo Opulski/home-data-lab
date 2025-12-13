@@ -1,6 +1,23 @@
 from pathlib import Path
 from datetime import datetime, timezone
 import pandas as pd
+import argparse
+
+# AS_OF = pd.Timestamp.now(tz="UTC")
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--ingested-at",
+    help="YYYY-MM-DDTHH-MM-SSZ (optional for local debug)", required=True
+)
+args = parser.parse_args()
+
+if args.ingested_at:
+    AS_OF = pd.to_datetime(
+        args.as_of,
+        format="%Y-%m-%dT%H-%M-%SZ",
+        utc=True
+    )
 
 # Load raw data
 RAW_PATH = "./data/01_raw/entsoe/Generation.csv"

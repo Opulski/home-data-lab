@@ -1,13 +1,23 @@
+import argparse
 from pathlib import Path
 from datetime import datetime, timezone
 import pandas as pd
+import argparse
 
-# AS_OF = pd.to_datetime(
-#     "2025-12-13T09-30-00Z",
-#     format="%Y-%m-%dT%H-%M-%SZ",
-#     utc=True
-# )
-AS_OF = pd.Timestamp.now(tz="UTC")
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--as-of",
+    help="YYYY-MM-DDTHH-MM-SSZ (optional for local debug)", required=True
+)
+args = parser.parse_args()
+
+if args.as_of:
+    AS_OF = pd.to_datetime(
+        args.as_of,
+        format="%Y-%m-%dT%H-%M-%SZ",
+        utc=True
+    )
+
 
 # ------------------------------------------------
 # Load price data
@@ -18,8 +28,6 @@ print(f"Found {len(files)} files.")
 dfs = []
 candidates = []
 for fp in files:
-
-    # ingested_at aus Pfad extrahieren (kein Magic)
     ingested_at_str = fp.parent.name.split("=", 1)[1]
     ingested_at = pd.to_datetime(
         ingested_at_str,
@@ -41,9 +49,8 @@ RAW_ROOT = Path("./data/02_stg/entsoe/load_1h")
 files = sorted(RAW_ROOT.glob("ingested_at=*/Load_1h.csv"))
 print(f"Found {len(files)} files.")
 dfs = []
+candidates = []
 for fp in files:
-
-    # ingested_at aus Pfad extrahieren (kein Magic)
     ingested_at_str = fp.parent.name.split("=", 1)[1]
     ingested_at = pd.to_datetime(
         ingested_at_str,
@@ -52,12 +59,11 @@ for fp in files:
     )
     if ingested_at > AS_OF:
         continue
-    df_load = pd.read_csv(fp)
-    df_load["ingested_at"] = pd.Timestamp(ingested_at)
+    candidates.append((ingested_at, fp))
 
-    dfs.append(df_load)
-
-df_load = pd.concat(dfs, ignore_index=True)
+chosen_ingested_at, chosen_fp = max(candidates, key=lambda x: x[0])
+df_load = pd.read_csv(chosen_fp)
+df_load["ingested_at"] = pd.Timestamp(chosen_ingested_at)
 
 # ------------------------------------------------
 # Load generation data
@@ -66,9 +72,8 @@ RAW_ROOT = Path("./data/02_stg/entsoe/generation_1h")
 files = sorted(RAW_ROOT.glob("ingested_at=*/Generation_1h.csv"))
 print(f"Found {len(files)} files.")
 dfs = []
+candidates = []
 for fp in files:
-
-    # ingested_at aus Pfad extrahieren (kein Magic)
     ingested_at_str = fp.parent.name.split("=", 1)[1]
     ingested_at = pd.to_datetime(
         ingested_at_str,
@@ -77,12 +82,11 @@ for fp in files:
     )
     if ingested_at > AS_OF:
         continue
-    df_gen = pd.read_csv(fp)
-    df_gen["ingested_at"] = pd.Timestamp(ingested_at)
+    candidates.append((ingested_at, fp))
 
-    dfs.append(df_gen)
-
-df_gen = pd.concat(dfs, ignore_index=True)
+chosen_ingested_at, chosen_fp = max(candidates, key=lambda x: x[0])
+df_gen = pd.read_csv(chosen_fp)
+df_gen["ingested_at"] = pd.Timestamp(chosen_ingested_at)
 
 # ------------------------------------------------
 # Load weather data
