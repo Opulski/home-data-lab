@@ -2,51 +2,7 @@
 
 ## 🔴 CRITICAL - Must Fix Before Merge
 
-### 1. Fix Data Leakage in ML Model
-
-**⚠️ CRITICAL**: The model uses features that won't be available at prediction time, making results invalid.
-
-**File**: `pipelines/models/baseline_regression.py`
-
-**Problem**: Lines 76-79 use actual load data that won't be known when predicting day-ahead prices:
-```python
-df["load_forecast_mw"] = df["Day-ahead Total Load Forecast (MW)"]
-df["load_actual_mw"] = df["Actual Total Load (MW)"]  # ❌ LEAKAGE
-df["load_error_mw"] = df["load_actual_mw"] - df["load_forecast_mw"]  # ❌ LEAKAGE
-```
-
-**Fix**:
-```python
-# Remove these lines from FEATURES list (lines 96-112):
-# "load_error_mw",  # ❌ Remove - contains actual load
-# "load_ramp_1h",   # ❌ Remove - uses actual load
-
-# Keep only:
-FEATURES = [
-    "load_forecast_mw",  # ✅ Available day-ahead
-    "gen_renewable_mw",   # If available at bidding time
-    "gen_fossil_mw",      # If available at bidding time
-    "gen_res_share",      # If available at bidding time
-    "hour",
-    "hour_sin",
-    "hour_cos",
-    "dow",
-    "dow_sin",
-    "dow_cos",
-    "wind_ramp_1h",      # Only if using forecasted values
-    "solar_ramp_1h",     # Only if using forecasted values
-    "res_ramp_1h",       # Only if using forecasted values
-]
-```
-
-**Important considerations**:
-- Day-ahead prices are for delivery 24h in the future
-- Bidding typically closes around 12:00 CET for next-day delivery
-- Only use features that would be available at bidding cutoff time
-- Consider proper time alignment (lag the target or shift features forward)
-- Retrain model after fixing features to get realistic performance metrics
-
-### 2. Remove Data Files from Git
+### 1. Remove Data Files from Git
 
 **⚠️ WARNING**: This operation will remove data files from git tracking. Make sure you have backups of any important data before proceeding!
 
@@ -65,20 +21,7 @@ git commit -m "Remove data files from git tracking"
 
 **Why**: Repository contains ~900K lines of CSV data, bloating repo size and violating best practices.
 
-### 3. Create Missing `ingest_entsoe.py` Script
-
-The Makefile references this script but it doesn't exist:
-```makefile
-ingest:
-    uv run python pipelines/ingest_entsoe.py --ingested-at $(INGESTED_AT)
-```
-
-**Options:**
-- Create the script to download/generate data
-- Update Makefile to match existing workflow
-- Add documentation about how to obtain data
-
-### 4. Add CLI Arguments to Staging Scripts
+### 2. Add CLI Arguments to Staging Scripts
 
 **Files to update:**
 - `pipelines/stg/stg_prices_1h.py`
@@ -106,6 +49,48 @@ ingested_at = pd.to_datetime(args.ingested_at, format="%Y-%m-%dT%H-%M-%SZ", utc=
 ---
 
 ## 🟡 HIGH PRIORITY - Should Fix Soon
+
+### 3. Document Model Purpose
+
+**File**: `pipelines/models/baseline_regression.py`
+
+**Current state**: Model uses actual load data, which appears to be "data leakage"
+
+**Clarification needed**: Add comments explaining this is an **ex post analysis model**:
+
+```python
+# Ex post analysis model - uses actual load for retrospective analysis
+# This model explains what factors drove historical prices with full information
+# For forecasting, a separate model with proper temporal constraints is needed
+
+df["load_forecast_mw"] = df["Day-ahead Total Load Forecast (MW)"]
+df["load_actual_mw"] = df["Actual Total Load (MW)"]  # OK for ex post analysis
+df["load_error_mw"] = df["load_actual_mw"] - df["load_forecast_mw"]  # OK for ex post
+```
+
+**Additional recommendations**:
+- Rename file to `baseline_ex_post_analysis.py` to clarify purpose
+- Add module docstring explaining the model's use case
+- Document that a forecasting model is planned as next step
+
+### 4. Document Manual Data Ingestion
+
+**File**: `Makefile`
+
+**Current state**: References non-existent `ingest_entsoe.py`
+
+**Context**: Script intentionally missing - waiting on ENTSOE API key, currently using manual downloads
+
+**Fix**:
+```makefile
+# NOTE: ingest_entsoe.py not yet implemented - waiting on ENTSOE API key
+# Current workflow: manually download data to data/01_raw/
+# TODO: Implement automated ingestion once API key available
+ingest:
+	@echo "Manual download required - waiting on ENTSOE API key"
+	@echo "Download data to: data/01_raw/entsoe/ and data/01_raw/weather/"
+	# uv run python pipelines/ingest_entsoe.py --ingested-at $(INGESTED_AT)
+```
 
 ### 5. Fix Inconsistent Mart Join Logic
 
@@ -346,13 +331,13 @@ Copy this to track progress:
 
 ```markdown
 ### Critical (Before Merge)
-- [ ] Fix data leakage in ML model (remove actual load features)
 - [ ] Remove data files from git
 - [ ] Add data/ to .gitignore  
-- [ ] Create ingest_entsoe.py or update Makefile
 - [ ] Add --ingested-at argument to all stg scripts
 
 ### High Priority
+- [ ] Document model as ex post analysis (not forecasting)
+- [ ] Document manual data ingestion process in Makefile
 - [ ] Fix mart join logic inconsistency
 - [ ] Remove debug print statements
 - [ ] Add basic pipelines/README.md

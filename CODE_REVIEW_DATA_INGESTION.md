@@ -35,20 +35,22 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
   - Only commit small sample/fixture data if needed for testing
 
 ### 2. **Missing Ingestion Script**
-**Severity: HIGH**
+**Severity: LOW** - Intentionally not implemented yet
 
-- **Problem**: `Makefile` references `pipelines/ingest_entsoe.py` which doesn't exist
+- **Status**: `Makefile` references `pipelines/ingest_entsoe.py` which doesn't exist
   ```makefile
   ingest:
       uv run python pipelines/ingest_entsoe.py --ingested-at $(INGESTED_AT)
   ```
 
-- **Impact**: The pipeline cannot be executed end-to-end as documented
+- **Context**: Script is intentionally missing - waiting on ENTSOE API key. Currently using manual data downloads.
+
+- **Impact**: Minor - the pipeline works with manually downloaded data
 
 - **Recommendation**: 
-  - Create the missing `ingest_entsoe.py` script
-  - Or update Makefile to reference existing scripts
-  - Document the actual ingestion process
+  - Update Makefile comments to document manual download process
+  - Add TODO comment noting API key dependency
+  - Implement automated ingestion once API key is available
 
 ### 3. **No Command-Line Interface for STG Scripts**
 **Severity: MEDIUM**
@@ -73,32 +75,32 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
   ingested_at = pd.to_datetime(args.ingested_at, format="%Y-%m-%dT%H-%M-%SZ", utc=True)
   ```
 
-### 4. **Data Leakage in ML Model (CRITICAL)**
-**Severity: HIGH** - Invalidates model results
+### 4. **Model Purpose Not Documented**
+**Severity: MEDIUM** - Clarification needed
 
-- **Problem**: The baseline regression model uses features that wouldn't be available at prediction time
+- **Observation**: The baseline regression model uses actual load data alongside day-ahead forecasts
   - **File**: `pipelines/models/baseline_regression.py`
   - **Lines 76-79**: Uses `Actual Total Load (MW)` to create `load_actual_mw` and `load_error_mw` features
-  - **Issue**: Day-ahead prices are for delivery 24 hours in the future, but the model uses actual load values at the same timestamp
   
   ```python
   df["load_forecast_mw"] = df["Day-ahead Total Load Forecast (MW)"]
-  df["load_actual_mw"] = df["Actual Total Load (MW)"]  # ❌ LEAKAGE
-  df["load_error_mw"] = df["load_actual_mw"] - df["load_forecast_mw"]  # ❌ LEAKAGE
+  df["load_actual_mw"] = df["Actual Total Load (MW)"]
+  df["load_error_mw"] = df["load_actual_mw"] - df["load_forecast_mw"]
   ```
 
+- **Context**: This is an **ex post analysis model** (retrospective/explanatory), not a forecasting model. Using actual load values is appropriate for understanding historical price drivers.
+
 - **Impact**: 
-  - Model appears to perform better than it actually would in production (RMSE: 27.08 is artificially low)
-  - Cannot be deployed for real predictions without retraining
-  - Results are misleading for business decisions
-  - The actual load 24h in the future is unknown at bidding time (typically 12:00 CET for next-day delivery)
+  - Model provides valuable insights into what factors drove historical prices
+  - RMSE: 27.08 represents how well the model explains past prices with full information
+  - **Cannot be used for forecasting** without modification (would need proper temporal alignment)
 
 - **Recommendation**: 
-  - Remove `load_actual_mw` and `load_error_mw` from features
-  - Only use day-ahead forecasts that would be available at bidding time
-  - Consider proper time alignment: when predicting price for hour H, only use features available at bidding cutoff (typically H-12 to H-36 hours)
-  - Retrain model with proper temporal alignment
-  - Document the prediction timeline clearly (when forecast is made vs. when delivery occurs)
+  - Add clear documentation in model file explaining it's an ex post analysis
+  - Add comment: `# Ex post model - uses actual load for retrospective analysis`
+  - Document that a separate forecasting model is needed for production predictions
+  - When building forecasting model: remove actual load features, apply proper time alignment based on bidding cutoff
+  - Consider renaming file to `baseline_analysis.py` or `ex_post_regression.py` to make purpose clear
 
 ---
 
@@ -277,18 +279,19 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
 
 ### Immediate (Before Merge):
 1. ✅ Remove all data files from git and update `.gitignore`
-2. ✅ Fix data leakage in ML model (remove actual load features)
-3. ✅ Create or fix `pipelines/ingest_entsoe.py`
-4. ✅ Add CLI argument parsing to all staging scripts
-5. ✅ Standardize the marts join logic
-6. ✅ Add basic README documentation
+2. ✅ Document model purpose (ex post vs forecasting)
+3. ✅ Add CLI argument parsing to all staging scripts
+4. ✅ Standardize the marts join logic
+5. ✅ Add basic README documentation
 
 ### Short-term (Next Sprint):
-1. Extract common code into utilities module
-2. Add data validation with Pandera schemas
-3. Set up logging framework
-4. Add unit tests for transformation logic
-5. Configure linting and formatting
+1. Build forecasting model with proper temporal constraints
+2. Implement `ingest_entsoe.py` once API key is available
+3. Extract common code into utilities module
+4. Add data validation with Pandera schemas
+5. Set up logging framework
+6. Add unit tests for transformation logic
+7. Configure linting and formatting
 
 ### Long-term:
 1. Move to proper orchestration (Airflow/Dagster)
@@ -305,9 +308,9 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
 - **Files Changed**: 25
 - **Lines Added**: ~915,549 (mostly data)
 - **Code Files**: ~10 Python files
-- **Critical Issues**: 4 (including data leakage in ML model)
-- **Major Issues**: 5
-- **Minor Issues**: 7
+- **Critical Issues**: 2 (data files in git, CLI arguments)
+- **Major Issues**: 6 (including documentation needs)
+- **Minor Issues**: 8
 
 ---
 

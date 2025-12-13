@@ -4,24 +4,11 @@ Quick reference checklist for addressing review findings.
 
 ## 🔴 Critical (Must Fix Before Merge)
 
-- [ ] **Fix data leakage in ML model** ⚠️ **MOST CRITICAL**
-  - [ ] Remove `load_actual_mw` from feature calculations
-  - [ ] Remove `load_error_mw` from FEATURES list
-  - [ ] Remove `load_ramp_1h` from FEATURES list (uses actual load)
-  - [ ] Retrain model with corrected features
-  - [ ] Document realistic performance metrics
-  - [ ] Add comments explaining temporal alignment requirements
-
 - [ ] **Remove data files from git**
   - [ ] Run `git rm -r --cached data/` (after backing up)
   - [ ] Add `data/` to `.gitignore`
   - [ ] Commit and push changes
   - [ ] Document how to obtain/generate data files
-
-- [ ] **Fix missing ingestion script**
-  - [ ] Create `pipelines/ingest_entsoe.py` OR
-  - [ ] Update Makefile to remove ingest target OR
-  - [ ] Document the actual ingestion process
 
 - [ ] **Add CLI arguments to staging scripts**
   - [ ] `pipelines/stg/stg_prices_1h.py` - Add `--ingested-at` argument
@@ -31,6 +18,17 @@ Quick reference checklist for addressing review findings.
   - [ ] Test that Makefile commands work end-to-end
 
 ## 🟡 High Priority (Should Fix Soon)
+
+- [ ] **Document model purpose**
+  - [ ] Add comment in `baseline_regression.py`: "Ex post analysis model"
+  - [ ] Add module docstring explaining retrospective nature
+  - [ ] Note that forecasting model is next step with temporal constraints
+  - [ ] Consider renaming to `baseline_ex_post_analysis.py`
+
+- [ ] **Document manual ingestion process**
+  - [ ] Update Makefile comments to explain API key dependency
+  - [ ] Document manual download locations
+  - [ ] Add TODO for implementing automated ingestion
 
 - [ ] **Standardize mart join logic**
   - [ ] Choose strategy: latest file only OR concatenate+dedupe
@@ -104,16 +102,14 @@ For detailed information, see:
 
 ## 🎯 Minimum Viable Merge
 
-At minimum, address these 4 items before merging:
+At minimum, address these 2 items before merging:
 
-1. ✅ **Fix data leakage in ML model** (most critical - invalidates results)
-2. ✅ Remove data files from git (or accept that repo will be large)
-3. ✅ Fix/document the missing ingest script  
-4. ✅ Make CLI arguments work OR update Makefile to match reality
+1. ✅ Remove data files from git (or accept that repo will be large)
+2. ✅ Make CLI arguments work OR update Makefile to match reality
 
 Everything else can be addressed in follow-up PRs.
 
-**Note**: The data leakage fix is non-negotiable as it makes the model results misleading.
+**Note**: Model "data leakage" is not actually an issue - it's an ex post analysis model (retrospective), which is appropriate. A forecasting model will be built separately with proper temporal constraints.
 
 ---
 

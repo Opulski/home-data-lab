@@ -28,22 +28,12 @@ Plus a **baseline regression model** for day-ahead electricity price prediction:
 
 ## 🔴 Critical Issues (Must Fix)
 
-### 1. **Data Leakage in ML Model** ⚠️ **MOST CRITICAL**
-- Model uses `Actual Total Load (MW)` to create features
-- Day-ahead prices are for 24h future delivery, but model uses actual load at same timestamp
-- **Impact**: Model results are invalid - RMSE of 27.08 is artificially low
-- **Action**: Remove `load_actual_mw` and `load_error_mw` from features, retrain model
-
-### 2. **Remove ~900K Lines of CSV Data from Git**
+### 1. **Remove ~900K Lines of CSV Data from Git**
 - Your repository contains the actual data files
 - This bloats the repo and violates best practices
 - **Action**: Remove data files, add to `.gitignore`, document how to obtain data
 
-### 3. **Missing `ingest_entsoe.py` Script**
-- Makefile calls this script but it doesn't exist
-- **Action**: Create it or update Makefile to reflect actual workflow
-
-### 4. **Staging Scripts Don't Accept `--ingested-at` Argument**
+### 2. **Staging Scripts Don't Accept `--ingested-at` Argument**
 - Makefile passes `--ingested-at` but scripts ignore it
 - Currently hardcoded: `ingested_at = pd.Timestamp.now(tz="UTC")`
 - **Action**: Add argparse to all 4 staging scripts
@@ -51,6 +41,17 @@ Plus a **baseline regression model** for day-ahead electricity price prediction:
 ---
 
 ## 🟡 Important Issues (Should Fix Soon)
+
+### 3. **Model Purpose Not Documented**
+- Model uses actual load data, which looks like "data leakage"
+- **Clarification**: This is an **ex post analysis model** (retrospective), not a forecasting model
+- Using actual load is appropriate for understanding what drove historical prices
+- **Action**: Add comments explaining model purpose, note that forecasting model is next step
+
+### 4. **Missing Ingestion Script Documentation**
+- Makefile references `ingest_entsoe.py` which doesn't exist
+- **Context**: Intentionally missing - waiting on ENTSOE API key, using manual downloads
+- **Action**: Document manual download process in Makefile comments
 
 ### 5. **Inconsistent Mart Join Logic**
 The `marts_join_asof.py` has different strategies for different data sources:
@@ -92,19 +93,19 @@ The `marts_join_asof.py` has different strategies for different data sources:
 
 I verified your code runs successfully:
 - ✅ Staging scripts execute without errors
-- ✅ Model script runs and produces results
-- ⚠️ Model performance metrics appear good but are **artificially inflated due to data leakage**
-- ⚠️ Cannot test full pipeline due to missing `ingest_entsoe.py`
+- ✅ Model script runs and produces results (RMSE: 27.08, R²: 0.724)
+- ✅ Model is appropriate as **ex post analysis** (retrospective study of price drivers)
+- ℹ️ Manual data download process working (API ingestion pending API key)
 
 ---
 
 ## 🎯 Recommended Next Steps
 
 ### Immediate (Before Merge):
-1. Fix data leakage in ML model (**most critical - invalidates results**)
-2. Remove data files from git
-3. Fix or document the ingest process
-4. Add CLI arguments to staging scripts
+1. Remove data files from git
+2. Add CLI arguments to staging scripts
+3. Document model as ex post analysis (add comments)
+4. Document manual ingestion process in Makefile
 5. Add basic README documentation
 
 ### This Week:
@@ -113,9 +114,11 @@ I verified your code runs successfully:
 8. Extract common code to utilities
 
 ### Next Sprint:
-9. Add data validation (Pandera/Great Expectations)
-10. Add logging framework
-11. Write unit tests for transformation logic
+9. Build forecasting model with proper temporal constraints
+10. Implement `ingest_entsoe.py` once API key available
+11. Add data validation (Pandera/Great Expectations)
+12. Add logging framework
+13. Write unit tests for transformation logic
 
 ---
 
@@ -131,19 +134,21 @@ I've created three documents to help you:
 
 ## 💡 Bottom Line
 
-You've built a solid foundation for a data pipeline and ML model. The architecture is sound and the approach is sensible. However, there are critical issues that need addressing:
+You've built a solid foundation for a data pipeline and **ex post analysis model**. The architecture is sound and the approach is sensible. The main issues to address:
 
-1. **Model Validity**: Data leakage makes current results invalid - the model uses future information
-2. **Operational**: Data files in git, missing scripts  
+1. **Operational**: Data files in git, CLI arguments need fixing
+2. **Documentation**: Model purpose and manual ingestion process need documenting
 3. **Maintainability**: Code duplication, lack of docs/tests
 4. **Robustness**: No validation, hardcoded values
 
-**The data leakage issue is the most critical** as it invalidates the model performance metrics. The model appears to work well (RMSE: 27.08) but this is artificially low because it's using actual load data that wouldn't be available at prediction time.
+**Important clarification**: The model is correctly designed as an **ex post analysis** (retrospective study), not a forecasting model. Using actual load data is appropriate for understanding what drove historical prices. The RMSE of 27.08 represents explanatory power, not predictive performance.
 
-**These are all fixable** and typical for a first iteration. Focus on fixing the data leakage first (removes 2 features, retrain), then address other critical issues.
+**These are all fixable** and typical for a first iteration. Focus on removing data files from git first, then add CLI arguments and documentation.
 
-**Estimated effort to address critical issues**: 3-6 hours (including model retraining)  
+**Estimated effort to address critical issues**: 2-4 hours  
 **Estimated effort for all major issues**: 1-2 days
+
+**Next major milestone**: Build a forecasting model with proper temporal constraints for production use.
 
 ---
 
