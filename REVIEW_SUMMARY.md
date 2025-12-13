@@ -28,16 +28,22 @@ Plus a **baseline regression model** for day-ahead electricity price prediction:
 
 ## 🔴 Critical Issues (Must Fix)
 
-### 1. **Remove ~900K Lines of CSV Data from Git**
+### 1. **Data Leakage in ML Model** ⚠️ **MOST CRITICAL**
+- Model uses `Actual Total Load (MW)` to create features
+- Day-ahead prices are for 24h future delivery, but model uses actual load at same timestamp
+- **Impact**: Model results are invalid - RMSE of 27.08 is artificially low
+- **Action**: Remove `load_actual_mw` and `load_error_mw` from features, retrain model
+
+### 2. **Remove ~900K Lines of CSV Data from Git**
 - Your repository contains the actual data files
 - This bloats the repo and violates best practices
 - **Action**: Remove data files, add to `.gitignore`, document how to obtain data
 
-### 2. **Missing `ingest_entsoe.py` Script**
+### 3. **Missing `ingest_entsoe.py` Script**
 - Makefile calls this script but it doesn't exist
 - **Action**: Create it or update Makefile to reflect actual workflow
 
-### 3. **Staging Scripts Don't Accept `--ingested-at` Argument**
+### 4. **Staging Scripts Don't Accept `--ingested-at` Argument**
 - Makefile passes `--ingested-at` but scripts ignore it
 - Currently hardcoded: `ingested_at = pd.Timestamp.now(tz="UTC")`
 - **Action**: Add argparse to all 4 staging scripts
@@ -46,21 +52,21 @@ Plus a **baseline regression model** for day-ahead electricity price prediction:
 
 ## 🟡 Important Issues (Should Fix Soon)
 
-### 4. **Inconsistent Mart Join Logic**
+### 5. **Inconsistent Mart Join Logic**
 The `marts_join_asof.py` has different strategies for different data sources:
 - Price/Weather: Uses latest file only (`max(candidates)`)
 - Load/Generation: Concatenates ALL files (could create duplicates)
 
 **Impact**: When you have multiple ingestion runs, load/generation data will have duplicates.
 
-### 5. **Code Duplication**
+### 6. **Code Duplication**
 - MTU parsing logic repeated in 3 files
 - Timezone handling duplicated
 - File saving logic duplicated
 
 **Recommendation**: Extract to `pipelines/utils/common.py`
 
-### 6. **No Documentation**
+### 7. **No Documentation**
 - No docstrings
 - No README in pipelines/
 - Comments occasionally in German
@@ -87,7 +93,7 @@ The `marts_join_asof.py` has different strategies for different data sources:
 I verified your code runs successfully:
 - ✅ Staging scripts execute without errors
 - ✅ Model script runs and produces results
-- ✅ Model performance metrics are reasonable
+- ⚠️ Model performance metrics appear good but are **artificially inflated due to data leakage**
 - ⚠️ Cannot test full pipeline due to missing `ingest_entsoe.py`
 
 ---
@@ -95,20 +101,21 @@ I verified your code runs successfully:
 ## 🎯 Recommended Next Steps
 
 ### Immediate (Before Merge):
-1. Remove data files from git (**most critical**)
-2. Fix or document the ingest process
-3. Add CLI arguments to staging scripts
-4. Add basic README documentation
+1. Fix data leakage in ML model (**most critical - invalidates results**)
+2. Remove data files from git
+3. Fix or document the ingest process
+4. Add CLI arguments to staging scripts
+5. Add basic README documentation
 
 ### This Week:
-5. Standardize the marts join logic
-6. Remove debug print statements
-7. Extract common code to utilities
+6. Standardize the marts join logic
+7. Remove debug print statements
+8. Extract common code to utilities
 
 ### Next Sprint:
-8. Add data validation (Pandera/Great Expectations)
-9. Add logging framework
-10. Write unit tests for transformation logic
+9. Add data validation (Pandera/Great Expectations)
+10. Add logging framework
+11. Write unit tests for transformation logic
 
 ---
 
@@ -124,15 +131,18 @@ I've created three documents to help you:
 
 ## 💡 Bottom Line
 
-You've built a solid foundation for a data pipeline and ML model. The architecture is sound, the approach is sensible, and the model shows promise. The main issues are:
+You've built a solid foundation for a data pipeline and ML model. The architecture is sound and the approach is sensible. However, there are critical issues that need addressing:
 
-1. **Operational**: Data files in git, missing scripts
-2. **Maintainability**: Code duplication, lack of docs/tests
-3. **Robustness**: No validation, hardcoded values
+1. **Model Validity**: Data leakage makes current results invalid - the model uses future information
+2. **Operational**: Data files in git, missing scripts  
+3. **Maintainability**: Code duplication, lack of docs/tests
+4. **Robustness**: No validation, hardcoded values
 
-**These are all fixable** and typical for a first iteration. Focus on the critical issues first (especially removing data from git), then iterate on code quality.
+**The data leakage issue is the most critical** as it invalidates the model performance metrics. The model appears to work well (RMSE: 27.08) but this is artificially low because it's using actual load data that wouldn't be available at prediction time.
 
-**Estimated effort to address critical issues**: 2-4 hours  
+**These are all fixable** and typical for a first iteration. Focus on fixing the data leakage first (removes 2 features, retrain), then address other critical issues.
+
+**Estimated effort to address critical issues**: 3-6 hours (including model retraining)  
 **Estimated effort for all major issues**: 1-2 days
 
 ---

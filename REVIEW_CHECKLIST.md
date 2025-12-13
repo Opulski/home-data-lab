@@ -4,6 +4,14 @@ Quick reference checklist for addressing review findings.
 
 ## 🔴 Critical (Must Fix Before Merge)
 
+- [ ] **Fix data leakage in ML model** ⚠️ **MOST CRITICAL**
+  - [ ] Remove `load_actual_mw` from feature calculations
+  - [ ] Remove `load_error_mw` from FEATURES list
+  - [ ] Remove `load_ramp_1h` from FEATURES list (uses actual load)
+  - [ ] Retrain model with corrected features
+  - [ ] Document realistic performance metrics
+  - [ ] Add comments explaining temporal alignment requirements
+
 - [ ] **Remove data files from git**
   - [ ] Run `git rm -r --cached data/` (after backing up)
   - [ ] Add `data/` to `.gitignore`
@@ -96,13 +104,16 @@ For detailed information, see:
 
 ## 🎯 Minimum Viable Merge
 
-At minimum, address these 3 items before merging:
+At minimum, address these 4 items before merging:
 
-1. ✅ Remove data files from git (or accept that repo will be large)
-2. ✅ Fix/document the missing ingest script  
-3. ✅ Make CLI arguments work OR update Makefile to match reality
+1. ✅ **Fix data leakage in ML model** (most critical - invalidates results)
+2. ✅ Remove data files from git (or accept that repo will be large)
+3. ✅ Fix/document the missing ingest script  
+4. ✅ Make CLI arguments work OR update Makefile to match reality
 
 Everything else can be addressed in follow-up PRs.
+
+**Note**: The data leakage fix is non-negotiable as it makes the model results misleading.
 
 ---
 

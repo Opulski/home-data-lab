@@ -73,11 +73,38 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
   ingested_at = pd.to_datetime(args.ingested_at, format="%Y-%m-%dT%H-%M-%SZ", utc=True)
   ```
 
+### 4. **Data Leakage in ML Model (CRITICAL)**
+**Severity: HIGH** - Invalidates model results
+
+- **Problem**: The baseline regression model uses features that wouldn't be available at prediction time
+  - **File**: `pipelines/models/baseline_regression.py`
+  - **Lines 76-79**: Uses `Actual Total Load (MW)` to create `load_actual_mw` and `load_error_mw` features
+  - **Issue**: Day-ahead prices are for delivery 24 hours in the future, but the model uses actual load values at the same timestamp
+  
+  ```python
+  df["load_forecast_mw"] = df["Day-ahead Total Load Forecast (MW)"]
+  df["load_actual_mw"] = df["Actual Total Load (MW)"]  # ❌ LEAKAGE
+  df["load_error_mw"] = df["load_actual_mw"] - df["load_forecast_mw"]  # ❌ LEAKAGE
+  ```
+
+- **Impact**: 
+  - Model appears to perform better than it actually would in production (RMSE: 27.08 is artificially low)
+  - Cannot be deployed for real predictions without retraining
+  - Results are misleading for business decisions
+  - The actual load 24h in the future is unknown at bidding time (typically 12:00 CET for next-day delivery)
+
+- **Recommendation**: 
+  - Remove `load_actual_mw` and `load_error_mw` from features
+  - Only use day-ahead forecasts that would be available at bidding time
+  - Consider proper time alignment: when predicting price for hour H, only use features available at bidding cutoff (typically H-12 to H-36 hours)
+  - Retrain model with proper temporal alignment
+  - Document the prediction timeline clearly (when forecast is made vs. when delivery occurs)
+
 ---
 
 ## 🟡 Major Issues
 
-### 4. **Inconsistent Error Handling**
+### 5. **Inconsistent Error Handling**
 **Severity: MEDIUM**
 
 - **Problem**: Inconsistent use of `errors="coerce"` in parsing
@@ -86,7 +113,7 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
 
 - **Recommendation**: Standardize error handling strategy and add logging for coerced values
 
-### 5. **Code Duplication**
+### 6. **Code Duplication**
 **Severity: MEDIUM**
 
 - **Problem**: Heavy duplication across staging scripts:
@@ -111,7 +138,7 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
       ...
   ```
 
-### 6. **Hardcoded Paths**
+### 7. **Hardcoded Paths**
 **Severity: MEDIUM**
 
 - **Problem**: All paths are hardcoded strings starting with `./data/`
@@ -129,7 +156,7 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
   - Pass paths as CLI arguments
   - Use `pathlib.Path` consistently and define root paths centrally
 
-### 7. **No Data Validation**
+### 8. **No Data Validation**
 **Severity: MEDIUM**
 
 - **Problem**: No validation of:
@@ -144,7 +171,7 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
   - Implement checks before and after transformations
   - Fail fast on schema mismatches
 
-### 8. **Problematic mart join logic in `marts_join_asof.py`**
+### 9. **Problematic mart join logic in `marts_join_asof.py`**
 **Severity: MEDIUM**
 
 - **Problems**:
@@ -176,35 +203,35 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
 
 ## 🟢 Minor Issues / Improvements
 
-### 9. **Missing Documentation**
+### 10. **Missing Documentation**
 - No docstrings on any functions
 - No README in `pipelines/` explaining the data flow
 - No data dictionary explaining what each field means
 - Comments are sparse and sometimes in German ("ingested_at aus Pfad extrahieren (kein Magic)")
 
-### 10. **Code Style Inconsistencies**
+### 11. **Code Style Inconsistencies**
 - Inconsistent spacing around operators
 - Some scripts use blank lines liberally, others don't
 - No linting configuration (ruff, black, flake8)
 - Would benefit from pre-commit hooks
 
-### 11. **No Testing**
+### 12. **No Testing**
 - No unit tests for any pipeline code
 - No integration tests
 - No data quality tests
 - Makes refactoring risky
 
-### 12. **Timezone Handling Could Be Clearer**
+### 13. **Timezone Handling Could Be Clearer**
 - Uses "Europe/Berlin" for CET/CEST which is correct but could be confusing
 - Mixed use of UTC for ingestion timestamps and Berlin time for data
 - Could benefit from explicit documentation about timezone strategy
 
-### 13. **Resource Management**
+### 14. **Resource Management**
 - Large dataframes loaded entirely into memory
 - No streaming or chunking for big files
 - Could cause memory issues with larger datasets
 
-### 14. **Model Code Issues** (`baseline_regression.py`)
+### 15. **Model Code Issues** (`baseline_regression.py`)
 
 **Good practices observed:**
 - Time-based train/test split (appropriate for time series)
@@ -213,14 +240,15 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
 
 **Issues:**
 - Hardcoded default as_of timestamp: `"2025-12-13T16-28-39Z"`
-- Feature leakage risk: Model uses actual load which may not be available at prediction time
 - Hard-coded feature lists make it fragile to schema changes
 - No model serialization/persistence
 - Visualization calls `plt.show()` which won't work in headless environments
 - No evaluation metrics saved to disk
 - Assert statements for validation (will be removed in optimized Python)
 
-### 15. **Git Hygiene Issues**
+**Note**: The critical data leakage issue is covered separately in issue #4.
+
+### 16. **Git Hygiene Issues**
 
 **Commit messages:**
 - `"basic data ingestion still broken af"` - Unprofessional language
@@ -249,10 +277,11 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
 
 ### Immediate (Before Merge):
 1. ✅ Remove all data files from git and update `.gitignore`
-2. ✅ Create or fix `pipelines/ingest_entsoe.py`
-3. ✅ Add CLI argument parsing to all staging scripts
-4. ✅ Standardize the marts join logic
-5. ✅ Add basic README documentation
+2. ✅ Fix data leakage in ML model (remove actual load features)
+3. ✅ Create or fix `pipelines/ingest_entsoe.py`
+4. ✅ Add CLI argument parsing to all staging scripts
+5. ✅ Standardize the marts join logic
+6. ✅ Add basic README documentation
 
 ### Short-term (Next Sprint):
 1. Extract common code into utilities module
@@ -276,7 +305,7 @@ While the branch demonstrates a functional proof-of-concept for data ingestion a
 - **Files Changed**: 25
 - **Lines Added**: ~915,549 (mostly data)
 - **Code Files**: ~10 Python files
-- **Critical Issues**: 3
+- **Critical Issues**: 4 (including data leakage in ML model)
 - **Major Issues**: 5
 - **Minor Issues**: 7
 

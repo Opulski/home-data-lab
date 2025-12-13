@@ -2,7 +2,51 @@
 
 ## 🔴 CRITICAL - Must Fix Before Merge
 
-### 1. Remove Data Files from Git
+### 1. Fix Data Leakage in ML Model
+
+**⚠️ CRITICAL**: The model uses features that won't be available at prediction time, making results invalid.
+
+**File**: `pipelines/models/baseline_regression.py`
+
+**Problem**: Lines 76-79 use actual load data that won't be known when predicting day-ahead prices:
+```python
+df["load_forecast_mw"] = df["Day-ahead Total Load Forecast (MW)"]
+df["load_actual_mw"] = df["Actual Total Load (MW)"]  # ❌ LEAKAGE
+df["load_error_mw"] = df["load_actual_mw"] - df["load_forecast_mw"]  # ❌ LEAKAGE
+```
+
+**Fix**:
+```python
+# Remove these lines from FEATURES list (lines 96-112):
+# "load_error_mw",  # ❌ Remove - contains actual load
+# "load_ramp_1h",   # ❌ Remove - uses actual load
+
+# Keep only:
+FEATURES = [
+    "load_forecast_mw",  # ✅ Available day-ahead
+    "gen_renewable_mw",   # If available at bidding time
+    "gen_fossil_mw",      # If available at bidding time
+    "gen_res_share",      # If available at bidding time
+    "hour",
+    "hour_sin",
+    "hour_cos",
+    "dow",
+    "dow_sin",
+    "dow_cos",
+    "wind_ramp_1h",      # Only if using forecasted values
+    "solar_ramp_1h",     # Only if using forecasted values
+    "res_ramp_1h",       # Only if using forecasted values
+]
+```
+
+**Important considerations**:
+- Day-ahead prices are for delivery 24h in the future
+- Bidding typically closes around 12:00 CET for next-day delivery
+- Only use features that would be available at bidding cutoff time
+- Consider proper time alignment (lag the target or shift features forward)
+- Retrain model after fixing features to get realistic performance metrics
+
+### 2. Remove Data Files from Git
 
 **⚠️ WARNING**: This operation will remove data files from git tracking. Make sure you have backups of any important data before proceeding!
 
@@ -21,7 +65,7 @@ git commit -m "Remove data files from git tracking"
 
 **Why**: Repository contains ~900K lines of CSV data, bloating repo size and violating best practices.
 
-### 2. Create Missing `ingest_entsoe.py` Script
+### 3. Create Missing `ingest_entsoe.py` Script
 
 The Makefile references this script but it doesn't exist:
 ```makefile
@@ -34,7 +78,7 @@ ingest:
 - Update Makefile to match existing workflow
 - Add documentation about how to obtain data
 
-### 3. Add CLI Arguments to Staging Scripts
+### 4. Add CLI Arguments to Staging Scripts
 
 **Files to update:**
 - `pipelines/stg/stg_prices_1h.py`
@@ -63,7 +107,7 @@ ingested_at = pd.to_datetime(args.ingested_at, format="%Y-%m-%dT%H-%M-%SZ", utc=
 
 ## 🟡 HIGH PRIORITY - Should Fix Soon
 
-### 4. Fix Inconsistent Mart Join Logic
+### 5. Fix Inconsistent Mart Join Logic
 
 **File**: `pipelines/marts/marts_join_asof.py`
 
@@ -89,7 +133,7 @@ df_load = df_load.sort_values(['start_time', 'ingested_at'])
 df_load = df_load.drop_duplicates(subset=['start_time'], keep='last')
 ```
 
-### 5. Remove Debug Print Statements
+### 6. Remove Debug Print Statements
 
 **File**: `pipelines/marts/marts_join_asof.py`
 
@@ -107,7 +151,7 @@ logger.info(f"Found {len(files)} files for {source}")
 logger.debug(f"Weather columns: {df_weather.columns.tolist()}")
 ```
 
-### 6. Add Data Directory to .gitignore
+### 7. Add Data Directory to .gitignore
 
 **File**: `.gitignore`
 
@@ -135,7 +179,7 @@ touch data/03_marts/.gitkeep
 
 ## 🟢 MEDIUM PRIORITY - Good to Have
 
-### 7. Add Basic Documentation
+### 8. Add Basic Documentation
 
 Create `pipelines/README.md`:
 ```markdown
@@ -162,7 +206,7 @@ make marts AS_OF=2025-12-13T10-00-00Z
 - Meteostat: Historical weather data
 ```
 
-### 8. Add Type Hints
+### 9. Add Type Hints
 
 Example for `stg_prices_1h.py`:
 ```python
@@ -178,7 +222,7 @@ def parse_mtu(df: pd.DataFrame, column: str) -> pd.DataFrame:
     return df
 ```
 
-### 9. Add Basic Logging
+### 10. Add Basic Logging
 
 ```python
 import logging
@@ -198,7 +242,7 @@ logger.warning(f"Found {null_count} null values in critical column")
 
 ## ⚪ LOW PRIORITY - Nice to Have
 
-### 10. Extract Common Utilities
+### 11. Extract Common Utilities
 
 Create `pipelines/utils/common.py`:
 ```python
@@ -245,7 +289,7 @@ def save_partitioned(
     return output_file
 ```
 
-### 11. Add Pre-commit Configuration
+### 12. Add Pre-commit Configuration
 
 Create `.pre-commit-config.yaml`:
 ```yaml
@@ -272,7 +316,7 @@ repos:
         args: ['--maxkb=500']
 ```
 
-### 12. Add Basic Tests
+### 13. Add Basic Tests
 
 Create `tests/test_staging.py`:
 ```python
@@ -302,6 +346,7 @@ Copy this to track progress:
 
 ```markdown
 ### Critical (Before Merge)
+- [ ] Fix data leakage in ML model (remove actual load features)
 - [ ] Remove data files from git
 - [ ] Add data/ to .gitignore  
 - [ ] Create ingest_entsoe.py or update Makefile
