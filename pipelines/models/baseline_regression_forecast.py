@@ -8,7 +8,10 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# TODO: Turn expost model into forecast model by training only on ex ante available data
+# Ex-ante forecast model: Day-ahead price prediction using only data available at gate closure (12:00 CEST)
+# Features: load_forecast_mw, time features, weather (proxy for renewables)
+# NOT used: load_error_mw, gen_*, ramps (all ex-post, 48h delayed)
+# TODO: Replace historical weather with weather forecast (currently using historical data)
 
 
 # ----------------------------------------------------------------------
@@ -56,31 +59,18 @@ HYDRO = [
 ]
 OTHER = ["Biomass", "Waste", "Other"]
 
-df["gen_renewable_mw"] = df[RENEWABLE].sum(axis=1)
-df["gen_fossil_mw"] = df[FOSSIL].sum(axis=1)
-df["gen_total_mw"] = df[[*RENEWABLE, *FOSSIL, *HYDRO, *OTHER]].sum(axis=1)
-df["gen_res_share"] = df["gen_renewable_mw"] / df["gen_total_mw"] * 100.0
-
-
-df["wind_total"] = df["Wind Onshore"] + df["Wind Offshore"]
-
-df["wind_ramp_1h"] = df["wind_total"] - df["wind_total"].shift(1)
-df["solar_ramp_1h"] = df["Solar"] - df["Solar"].shift(1)
-
-df["res_ramp_1h"] = df["wind_ramp_1h"] + df["solar_ramp_1h"]
-
-df["load_ramp_1h"] = df["Actual Total Load (MW)"] - df["Actual Total Load (MW)"].shift(
-    1
-)
-
+# Drop all generation columns (not ex-ante available, 48h delayed)
 DROP_COLS = RENEWABLE + FOSSIL + HYDRO + OTHER
 df = df.drop(columns=DROP_COLS, errors="ignore")
 
-
+# Only load forecast (published at gate closure)
 df["load_forecast_mw"] = df["Day-ahead Total Load Forecast (MW)"]
-df["load_actual_mw"] = df["Actual Total Load (MW)"]
 
-df["load_error_mw"] = df["load_actual_mw"] - df["load_forecast_mw"]
+# Weather features as proxy for renewables
+weather_cols = ["temp", "wspd", "pres", "tsun"]
+for col in weather_cols:
+    if col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
 
 
 df["start_time"] = pd.to_datetime(df["start_time"], utc=True, errors="coerce")
@@ -94,22 +84,19 @@ df["dow_cos"] = np.cos(2 * np.pi * df["dow"] / 7)
 
 
 FEATURES = [
-    "load_forecast_mw",
-    "load_error_mw",
-    "gen_renewable_mw",
-    "gen_fossil_mw",
-    "gen_res_share",
-    "hour",
+    "load_forecast_mw",  # Day-ahead forecast (ex-ante)
+    "hour",  # Time features
     "hour_sin",
     "hour_cos",
-    "dow",
+    "dow",  # Load patterns
     "dow_sin",
     "dow_cos",
-    "wind_ramp_1h",
-    "solar_ramp_1h",
-    "res_ramp_1h",
-    "load_ramp_1h",
 ]
+
+# Add weather features if available
+for col in ["temp", "wspd", "pres", "tsun"]:
+    if col in df.columns:
+        FEATURES.append(col)
 
 TARGET = "Day-ahead Price (EUR/MWh)"
 
@@ -169,27 +156,8 @@ print(resid.describe())
 # Residual Modeling
 # ----------------------------------------------------------------------
 
-FEATURES_RESIDUAL = [
-    "load_forecast_mw",
-    "load_error_mw",
-    "gen_renewable_mw",
-    "gen_fossil_mw",
-    "gen_res_share",
-    "hour",
-    "hour_sin",
-    "hour_cos",
-    "dow",
-    "dow_sin",
-    "dow_cos",
-    "wind_ramp_1h",
-    "solar_ramp_1h",
-    "res_ramp_1h",
-    "load_ramp_1h",
-    # Worsen the R^2 by including weather features
-    # "temp",
-    # "wspd",
-    # "tsun"
-]
+# Use same ex-ante features for residual model
+FEATURES_RESIDUAL = FEATURES.copy()
 
 # create residual target for train and test set
 test["y_pred_base"] = model.predict(X_test)
