@@ -1,0 +1,51 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: data-pipeline
+  namespace: home-data-lab
+spec:
+  # Run daily at 2 AM
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: pipeline
+            image: ghcr.io/opulski/home-data-lab:latest
+            imagePullPolicy: Always
+            command:
+              - "make"
+              - "run"
+            env:
+            - name: TZ
+              value: "Europe/Berlin"
+            volumeMounts:
+            - name: data
+              mountPath: /app/data
+            resources:
+              requests:
+                memory: "512Mi"
+                cpu: "500m"
+              limits:
+                memory: "1Gi"
+                cpu: "1000m"
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: data-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-pvc
+  namespace: home-data-lab
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path  # K3s default storage class

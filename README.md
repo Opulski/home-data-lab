@@ -41,6 +41,52 @@ Each directory contains its own README with specific guidelines and examples. St
 - **Documentation**: Keep docs close to code, use ADRs for decisions
 - **Modularity**: Independent, deployable components
 
+## Development Setup
+
+### Prerequisites
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/) for dependency management
+- pre-commit for code quality hooks
+
+### Local Development
+```bash
+# Install dependencies
+uv sync --group dev
+
+# Install pre-commit hooks
+pre-commit install
+
+# Run pipelines locally
+make run
+
+# Run specific pipeline stages
+make ingest
+make stg
+make marts AS_OF=2025-12-13T10-00-00Z
+```
+
+### Code Quality
+```bash
+# Run linters
+uv run ruff check pipelines/
+uv run black --check pipelines/
+
+# Run formatters
+uv run ruff check --fix pipelines/
+uv run black pipelines/
+
+# Run pre-commit on all files
+pre-commit run --all-files
+```
+
+## TODO
+
+- [ ] Implement ENTSO-E API ingestion (waiting for API key)
+- [ ] Add Renovate for automatic dependency updates (supports uv.lock)
+- [ ] Extract shared utilities (timestamp parsing, partition loading) to `pipelines/utils.py`
+- [ ] Add basic logging to replace print statements
+- [ ] Implement ex-ante forecast model (remove ex-post features)
+
 ## Contributing
 
 See individual directory READMEs for specific contribution guidelines.

@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+*.egg-info/
+
+# Data
+data/
+
+# Notebooks
+notebooks/
+*.ipynb
+
+# Development
+.git/
+.github/
+.vscode/
+.ruff_cache/
+.pytest_cache/
+*.backup
+
+# Docs
+docs/
+
+# Environment
+.env
+.envrc
+.DS_Store

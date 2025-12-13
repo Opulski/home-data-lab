@@ -1,23 +1,16 @@
 import argparse
 from pathlib import Path
-from datetime import datetime, timezone
+
 import pandas as pd
-import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--as-of",
-    help="YYYY-MM-DDTHH-MM-SSZ (optional for local debug)", required=True
+    "--as-of", help="YYYY-MM-DDTHH-MM-SSZ (optional for local debug)", required=True
 )
 args = parser.parse_args()
 
 if args.as_of:
-    AS_OF = pd.to_datetime(
-        args.as_of,
-        format="%Y-%m-%dT%H-%M-%SZ",
-        utc=True
-    )
-
+    AS_OF = pd.to_datetime(args.as_of, format="%Y-%m-%dT%H-%M-%SZ", utc=True)
 
 # ------------------------------------------------
 # Load price data
@@ -29,11 +22,7 @@ dfs = []
 candidates = []
 for fp in files:
     ingested_at_str = fp.parent.name.split("=", 1)[1]
-    ingested_at = pd.to_datetime(
-        ingested_at_str,
-        format="%Y-%m-%dT%H-%M-%SZ",
-        utc=True
-    )
+    ingested_at = pd.to_datetime(ingested_at_str, format="%Y-%m-%dT%H-%M-%SZ", utc=True)
     if ingested_at > AS_OF:
         continue
     candidates.append((ingested_at, fp))
@@ -52,11 +41,7 @@ dfs = []
 candidates = []
 for fp in files:
     ingested_at_str = fp.parent.name.split("=", 1)[1]
-    ingested_at = pd.to_datetime(
-        ingested_at_str,
-        format="%Y-%m-%dT%H-%M-%SZ",
-        utc=True
-    )
+    ingested_at = pd.to_datetime(ingested_at_str, format="%Y-%m-%dT%H-%M-%SZ", utc=True)
     if ingested_at > AS_OF:
         continue
     candidates.append((ingested_at, fp))
@@ -75,11 +60,7 @@ dfs = []
 candidates = []
 for fp in files:
     ingested_at_str = fp.parent.name.split("=", 1)[1]
-    ingested_at = pd.to_datetime(
-        ingested_at_str,
-        format="%Y-%m-%dT%H-%M-%SZ",
-        utc=True
-    )
+    ingested_at = pd.to_datetime(ingested_at_str, format="%Y-%m-%dT%H-%M-%SZ", utc=True)
     if ingested_at > AS_OF:
         continue
     candidates.append((ingested_at, fp))
@@ -100,11 +81,7 @@ for fp in files:
 
     # ingested_at aus Pfad extrahieren (kein Magic)
     ingested_at_str = fp.parent.name.split("=", 1)[1]
-    ingested_at = pd.to_datetime(
-        ingested_at_str,
-        format="%Y-%m-%dT%H-%M-%SZ",
-        utc=True
-    )
+    ingested_at = pd.to_datetime(ingested_at_str, format="%Y-%m-%dT%H-%M-%SZ", utc=True)
     if ingested_at > AS_OF:
         continue
     candidates.append((ingested_at, fp))
@@ -121,13 +98,13 @@ print(df_weather.head())
 # Join data
 # ------------------------------------------------
 # Ensure 'start_time' exists in all DataFrames
-if 'start_time' not in df_price.columns:
+if "start_time" not in df_price.columns:
     raise KeyError("Column 'start_time' is missing in df_price")
-if 'start_time' not in df_load.columns:
+if "start_time" not in df_load.columns:
     raise KeyError("Column 'start_time' is missing in df_load")
-if 'start_time' not in df_gen.columns:
+if "start_time" not in df_gen.columns:
     raise KeyError("Column 'start_time' is missing in df_gen")
-if 'start_time' not in df_weather.columns:
+if "start_time" not in df_weather.columns:
     raise KeyError("Column 'start_time' is missing in df_weather")
 
 
@@ -136,32 +113,18 @@ df_weather["start_time"] = pd.to_datetime(df_weather["start_time"], utc=True)
 df_gen["start_time"] = pd.to_datetime(df_gen["start_time"], utc=True)
 df_load["start_time"] = pd.to_datetime(df_load["start_time"], utc=True)
 
-df = df_price.merge(
-    df_load,
-    on="start_time",
-    how="outer",
-    suffixes=("_price", "_load")
-).merge(
-    df_gen,
-    on="start_time",
-    how="outer",
-    suffixes=("", "_gen")
-).merge(
-    df_weather,
-    on="start_time",
-    how="outer",
-    suffixes=("", "_weather")
+df = (
+    df_price.merge(df_load, on="start_time", how="outer", suffixes=("_price", "_load"))
+    .merge(df_gen, on="start_time", how="outer", suffixes=("", "_gen"))
+    .merge(df_weather, on="start_time", how="outer", suffixes=("", "_weather"))
 )
 
 # Add ingestion timestamp
 ingested_at = pd.Timestamp.now(tz="UTC")
 df["ingested_at"] = ingested_at
-ingested_at_st = (
-    ingested_at.strftime("%Y-%m-%dT%H-%M-%SZ")
-)
+ingested_at_st = ingested_at.strftime("%Y-%m-%dT%H-%M-%SZ")
 
-OUTPUT_PATH = Path(
-    f"./data/03_marts/as_of={AS_OF.strftime('%Y-%m-%dT%H-%M-%SZ')}")
+OUTPUT_PATH = Path(f"./data/03_marts/as_of={AS_OF.strftime('%Y-%m-%dT%H-%M-%SZ')}")
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 OUTPUT_PATH = OUTPUT_PATH / "Joined.csv"
 

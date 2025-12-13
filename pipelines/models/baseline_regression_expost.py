@@ -1,23 +1,19 @@
-from sklearn.ensemble import RandomForestRegressor
-import matplotlib.pyplot as plt
-from sklearn.metrics import r2_score
-import numpy as np
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-import pandas as pd
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error
-from pathlib import Path
 import argparse
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # ----------------------------------------------------------------------
 # Baseline Regression Model
 # ----------------------------------------------------------------------
 
 parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--as-of",
-    help="YYYY-MM-DDTHH-MM-SSZ (optional for local debug)"
-)
+parser.add_argument("--as-of", help="YYYY-MM-DDTHH-MM-SSZ (optional for local debug)")
 args = parser.parse_args()
 
 if args.as_of:
@@ -33,20 +29,28 @@ print(f"Loaded marts as_of={as_of_str}")
 
 
 RENEWABLE = [
-    "Solar", "Wind Onshore", "Wind Offshore",
+    "Solar",
+    "Wind Onshore",
+    "Wind Offshore",
     "Hydro Run-of-river and pondage",
     "Other renewable",
-    "Geothermal"
+    "Geothermal",
 ]
 
 FOSSIL = [
-    "Fossil Gas", "Fossil Hard coal", "Fossil Brown coal/Lignite",
-    "Fossil Oil", "Fossil Coal-derived gas"
+    "Fossil Gas",
+    "Fossil Hard coal",
+    "Fossil Brown coal/Lignite",
+    "Fossil Oil",
+    "Fossil Coal-derived gas",
 ]
 
 # optional (je nachdem wie du’s nutzen willst)
-HYDRO = ["Hydro Water Reservoir", "Hydro Pumped Storage",
-         "Hydro Run-of-river and pondage"]
+HYDRO = [
+    "Hydro Water Reservoir",
+    "Hydro Pumped Storage",
+    "Hydro Run-of-river and pondage",
+]
 OTHER = ["Biomass", "Waste", "Other"]
 
 df["gen_renewable_mw"] = df[RENEWABLE].sum(axis=1)
@@ -60,12 +64,10 @@ df["wind_total"] = df["Wind Onshore"] + df["Wind Offshore"]
 df["wind_ramp_1h"] = df["wind_total"] - df["wind_total"].shift(1)
 df["solar_ramp_1h"] = df["Solar"] - df["Solar"].shift(1)
 
-df["res_ramp_1h"] = (
-    df["wind_ramp_1h"] + df["solar_ramp_1h"]
-)
+df["res_ramp_1h"] = df["wind_ramp_1h"] + df["solar_ramp_1h"]
 
-df["load_ramp_1h"] = (
-    df["Actual Total Load (MW)"] - df["Actual Total Load (MW)"].shift(1)
+df["load_ramp_1h"] = df["Actual Total Load (MW)"] - df["Actual Total Load (MW)"].shift(
+    1
 )
 
 DROP_COLS = RENEWABLE + FOSSIL + HYDRO + OTHER
@@ -75,15 +77,10 @@ df = df.drop(columns=DROP_COLS, errors="ignore")
 df["load_forecast_mw"] = df["Day-ahead Total Load Forecast (MW)"]
 df["load_actual_mw"] = df["Actual Total Load (MW)"]
 
-df["load_error_mw"] = df["load_actual_mw"] - \
-    df["load_forecast_mw"]
+df["load_error_mw"] = df["load_actual_mw"] - df["load_forecast_mw"]
 
 
-df["start_time"] = pd.to_datetime(
-    df["start_time"],
-    utc=True,
-    errors="coerce"
-)
+df["start_time"] = pd.to_datetime(df["start_time"], utc=True, errors="coerce")
 df["hour"] = df["start_time"].dt.hour
 df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
 df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
@@ -108,7 +105,7 @@ FEATURES = [
     "wind_ramp_1h",
     "solar_ramp_1h",
     "res_ramp_1h",
-    "load_ramp_1h"
+    "load_ramp_1h",
 ]
 
 TARGET = "Day-ahead Price (EUR/MWh)"
@@ -155,10 +152,7 @@ mask = y_naive.notna() & y_test.notna()
 rmse_naive = np.sqrt(mean_squared_error(y_test[mask], y_naive[mask]))
 print(f"Naive RMSE: {rmse_naive:.2f}")
 
-coef = pd.Series(
-    model.coef_,
-    index=FEATURES
-).sort_values()
+coef = pd.Series(model.coef_, index=FEATURES).sort_values()
 
 print(coef)
 
@@ -210,11 +204,7 @@ X_test = test[FEATURES_RESIDUAL]
 y_test = test[TARGET_RESIDUAL]
 
 
-res_model = RandomForestRegressor(
-    n_estimators=200,
-    max_depth=5,
-    random_state=42
-)
+res_model = RandomForestRegressor(n_estimators=200, max_depth=5, random_state=42)
 
 res_model.fit(X_train, y_train)
 y_pred_resid = res_model.predict(X_test)
@@ -229,10 +219,8 @@ print(f"Residual Model R²:   {r2_score(y_test, y_pred_resid):.3f}")
 # ----------------------------------------------------------------------
 
 y_final_pred = test["y_pred_base"] + y_pred_resid
-rmse_final = np.sqrt(mean_squared_error(
-    test[TARGET], y_final_pred))
-mae_final = mean_absolute_error(
-    test[TARGET], y_final_pred)
+rmse_final = np.sqrt(mean_squared_error(test[TARGET], y_final_pred))
+mae_final = mean_absolute_error(test[TARGET], y_final_pred)
 print(f"Final Model RMSE: {rmse_final:.2f}")
 print(f"Final Model MAE:  {mae_final:.2f}")
 
@@ -246,7 +234,7 @@ resid = test[TARGET] - y_pred_final
 
 plt.figure(figsize=(10, 6))
 plt.scatter(y_pred_final, resid, alpha=0.5)
-plt.axhline(0, color='red', linestyle='--')
+plt.axhline(0, color="red", linestyle="--")
 plt.xlabel("Predicted Values")
 plt.ylabel("Residuals")
 plt.title("Residuals vs Predicted Values")
