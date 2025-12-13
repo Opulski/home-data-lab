@@ -1,7 +1,3 @@
-# ----------------------------------------------------------------------
-# Baseline Regression Model
-# ----------------------------------------------------------------------
-
 from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
@@ -9,11 +5,13 @@ import numpy as np
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import pandas as pd
 from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 from pathlib import Path
-from datetime import datetime, timezone
 import argparse
+
+# ----------------------------------------------------------------------
+# Baseline Regression Model
+# ----------------------------------------------------------------------
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -26,7 +24,7 @@ if args.as_of:
     as_of_str = args.as_of
 else:
     # ---------- LOCAL DEBUG DEFAULT ----------
-    as_of_str = "2025-12-13T10-17-52Z"
+    as_of_str = "2025-12-13T16-28-39Z"
 
 fp = Path(f"./data/03_marts/as_of={as_of_str}/Joined.csv")
 df = pd.read_csv(fp)
@@ -176,6 +174,28 @@ print(resid.describe())
 # Residual Modeling
 # ----------------------------------------------------------------------
 
+FEATURES_RESIDUAL = [
+    "load_forecast_mw",
+    "load_error_mw",
+    "gen_renewable_mw",
+    "gen_fossil_mw",
+    "gen_res_share",
+    "hour",
+    "hour_sin",
+    "hour_cos",
+    "dow",
+    "dow_sin",
+    "dow_cos",
+    "wind_ramp_1h",
+    "solar_ramp_1h",
+    "res_ramp_1h",
+    "load_ramp_1h",
+    # Worsen the R^2 by including weather features
+    # "temp",
+    # "wspd",
+    # "tsun"
+]
+
 # create residual target for train and test set
 test["y_pred_base"] = model.predict(X_test)
 test["residual"] = test[TARGET] - test["y_pred_base"]
@@ -184,9 +204,9 @@ train["residual"] = train[TARGET] - train["y_pred_base"]
 
 TARGET_RESIDUAL = "residual"
 
-X_train = train[FEATURES]
+X_train = train[FEATURES_RESIDUAL]
 y_train = train[TARGET_RESIDUAL]
-X_test = test[FEATURES]
+X_test = test[FEATURES_RESIDUAL]
 y_test = test[TARGET_RESIDUAL]
 
 

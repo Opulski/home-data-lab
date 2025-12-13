@@ -39,4 +39,4 @@ OUTPUT_PATH = Path(
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 OUTPUT_PATH = OUTPUT_PATH / "Meteostat_1h.csv"
 
-df.to_csv(OUTPUT_PATH, index=False)
+df.to_csv(OUTPUT_PATH, index=True)
