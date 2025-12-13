@@ -16,6 +16,7 @@ RAW_ROOT = Path("./data/02_stg/entsoe/daprice_1h")
 files = sorted(RAW_ROOT.glob("ingested_at=*/DAPrices_1h.csv"))
 print(f"Found {len(files)} files.")
 dfs = []
+candidates = []
 for fp in files:
 
     # ingested_at aus Pfad extrahieren (kein Magic)
@@ -27,12 +28,11 @@ for fp in files:
     )
     if ingested_at > AS_OF:
         continue
-    df = pd.read_csv(fp)
-    df["ingested_at"] = pd.Timestamp(ingested_at)
+    candidates.append((ingested_at, fp))
 
-    dfs.append(df)
-
-df_price = pd.concat(dfs, ignore_index=True)
+chosen_ingested_at, chosen_fp = max(candidates, key=lambda x: x[0])
+df_price = pd.read_csv(chosen_fp)
+df_price["ingested_at"] = pd.Timestamp(chosen_ingested_at)
 
 # set index
 df_price = df_price.set_index("start_time").sort_index()
