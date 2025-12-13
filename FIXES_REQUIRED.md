@@ -3,8 +3,15 @@
 ## 🔴 CRITICAL - Must Fix Before Merge
 
 ### 1. Remove Data Files from Git
+
+**⚠️ WARNING**: This operation will remove data files from git tracking. Make sure you have backups of any important data before proceeding!
+
 ```bash
-# Remove data directory from tracking
+# First, ensure you're in the correct directory and check what will be removed
+cd /path/to/home-data-lab
+git status
+
+# Remove data directory from tracking (keeps local files)
 git rm -r --cached data/
 echo "data/" >> .gitignore
 
@@ -318,4 +325,4 @@ Copy this to track progress:
 
 ---
 
-*Document created: 2025-12-13*
+*Document created for data-ingestion branch review*
