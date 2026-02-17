@@ -87,6 +87,18 @@ pre-commit run --all-files
 - [ ] Add basic logging to replace print statements
 - [ ] Implement ex-ante forecast model (remove ex-post features)
 
+### Roadmap (Energy CV + Learning)
+- [ ] Gate-closure helpers + `config.yaml` (AS_OF, TZ, paths)
+- [ ] Forecast model zoo (LinReg, RF/GBM), walk-forward split, leaderboard vs naive
+- [ ] Price spike classification (binary/quantile threshold)
+- [ ] Regime clustering (KMeans on load/price profiles)
+- [ ] Anomaly detection on residuals (Isolation Forest)
+- [ ] Light data quality checks (pandera ranges/non-null)
+- [ ] Docs: gate-closure & ex-ante feature assumptions
+- [ ] Fuel/holiday proxies for merit-order & seasonality
+- [ ] Optional: small DL demo (LSTM/TCN) for forecasting
+- [ ] Optional: simple orchestration demo (e.g., Prefect flow)
+
 ## Contributing
 
 See individual directory READMEs for specific contribution guidelines.

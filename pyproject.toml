@@ -3,8 +3,10 @@ name = "home-data-lab"
 version = "0.1.0"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "entsoe-py>=0.7.8",
     "matplotlib>=3.10.8",
     "meteostat>=1.7.6",
+    "mlflow>=3.7.0",
     "pandas>=2.3.3",
     "scikit-learn>=1.8.0",
 ]
@@ -17,6 +19,7 @@ dev = [
     "pre-commit>=3.6.0",
     "pytest>=8.0.0",
     "bandit>=1.7.0",
+    "notebook>=7.5.1",
 ]
 
 [tool.black]

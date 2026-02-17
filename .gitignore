@@ -219,3 +219,6 @@ __marimo__/
 .DS_Store
 */.ipynb_checkpoints
 .nbgrader/
+
+
+entsoe_token

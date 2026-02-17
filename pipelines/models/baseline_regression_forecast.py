@@ -84,13 +84,16 @@ df["dow_cos"] = np.cos(2 * np.pi * df["dow"] / 7)
 
 
 FEATURES = [
-    "load_forecast_mw",  # Day-ahead forecast (ex-ante)
-    "hour",  # Time features
+    "load_forecast_mw",
+    "hour",
     "hour_sin",
     "hour_cos",
-    "dow",  # Load patterns
+    "dow",
     "dow_sin",
     "dow_cos",
+    "wspd",
+    "temp",
+    "tsun",
 ]
 
 # Add weather features if available
